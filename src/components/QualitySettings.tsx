@@ -1,5 +1,6 @@
 import { QUALITY_ENHANCEMENTS } from "../types";
 import type { QualitySettings, AppAction, ModelSize } from "../types";
+import { useEffect, useState } from "react";
 
 interface Props {
   settings: QualitySettings;
@@ -44,8 +45,24 @@ export function QualitySettings({
 }: Props) {
   const activeCount = countActive(settings);
   const enhancements = QUALITY_ENHANCEMENTS.filter((e) => e.id !== "modelSize");
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile && settings.modelSize !== "small") {
+        dispatch({ type: "SET_QUALITY", settings: { modelSize: "small" } });
+      }
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, [settings.modelSize, dispatch]);
 
   function setModelSize(size: ModelSize) {
+    if (isMobile && size !== "small") return;
     dispatch({ type: "SET_QUALITY", settings: { modelSize: size } });
   }
 
@@ -130,39 +147,49 @@ export function QualitySettings({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {MODEL_TIERS.map((tier) => (
-            <button
-              key={tier.value}
-              type="button"
-              className={`
-                group relative flex flex-col items-start p-4 rounded-xl border transition-all duration-300
-                ${
-                  settings.modelSize === tier.value
-                    ? "bg-primary/10 border-primary shadow-[0_0_20px_rgba(0,212,255,0.15)]"
-                    : "bg-base/50 border-white/5 hover:border-white/20 hover:bg-surface"
-                }
-              `}
-              onClick={() => setModelSize(tier.value)}
-            >
-              <div className="flex justify-between w-full mb-1">
-                <span
-                  className={`font-display font-medium ${settings.modelSize === tier.value ? "text-primary" : "text-gray-300"}`}
-                >
-                  {tier.label}
+          {MODEL_TIERS.map((tier) => {
+            const isDisabled = isMobile && tier.value !== "small";
+            return (
+              <button
+                key={tier.value}
+                type="button"
+                className={`
+                  group relative flex flex-col items-start p-4 rounded-xl border transition-all duration-300
+                  ${
+                    settings.modelSize === tier.value
+                      ? "bg-primary/10 border-primary shadow-[0_0_20px_rgba(0,212,255,0.15)]"
+                      : "bg-base/50 border-white/5 hover:border-white/20 hover:bg-surface"
+                  }
+                  ${isDisabled ? "opacity-40 cursor-not-allowed grayscale" : ""}
+                `}
+                onClick={() => setModelSize(tier.value)}
+                disabled={isDisabled}
+              >
+                <div className="flex justify-between w-full mb-1">
+                  <span
+                    className={`font-display font-medium ${settings.modelSize === tier.value ? "text-primary" : "text-gray-300"}`}
+                  >
+                    {tier.label}
+                  </span>
+                  <span className="text-[10px] font-mono bg-black/30 px-1.5 py-0.5 rounded text-gray-500 group-hover:text-primary transition-colors">
+                    {tier.size}
+                  </span>
+                </div>
+                <span className="text-xs text-gray-500 text-left leading-relaxed">
+                  {tier.desc}
                 </span>
-                <span className="text-[10px] font-mono bg-black/30 px-1.5 py-0.5 rounded text-gray-500 group-hover:text-primary transition-colors">
-                  {tier.size}
-                </span>
-              </div>
-              <span className="text-xs text-gray-500 text-left leading-relaxed">
-                {tier.desc}
-              </span>
+                {isDisabled && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] rounded-xl text-[10px] font-mono text-white/50 uppercase tracking-widest border border-white/5">
+                    Desktop Only
+                  </span>
+                )}
 
-              {settings.modelSize === tier.value && (
-                <div className="absolute inset-0 border-2 border-primary rounded-xl pointer-events-none animate-pulse opacity-50" />
-              )}
-            </button>
-          ))}
+                {settings.modelSize === tier.value && (
+                  <div className="absolute inset-0 border-2 border-primary rounded-xl pointer-events-none animate-pulse opacity-50" />
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
