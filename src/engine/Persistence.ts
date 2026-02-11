@@ -1,6 +1,6 @@
 // Native IndexedDB implementation
 
-import { AppState, PhotoFile, ProcessedMesh } from "../types";
+import type { AppState, PhotoFile, ProcessedMesh } from "../types";
 import * as THREE from "three";
 
 const DB_NAME = "3d-venue-db";
