@@ -2,6 +2,7 @@ import type { AppStep } from "../types";
 
 interface Props {
   currentStep: AppStep;
+  onOpenTutorial: () => void;
 }
 
 const steps: { key: AppStep; label: string; icon: string }[] = [
@@ -11,7 +12,7 @@ const steps: { key: AppStep; label: string; icon: string }[] = [
   { key: "viewer", label: "3D Görüntüle", icon: "👁️" },
 ];
 
-export function Header({ currentStep }: Props) {
+export function Header({ currentStep, onOpenTutorial }: Props) {
   const currentIdx = steps.findIndex((s) => s.key === currentStep);
 
   return (
@@ -62,6 +63,14 @@ export function Header({ currentStep }: Props) {
           );
         })}
       </nav>
+
+      <button
+        onClick={onOpenTutorial}
+        className="ml-4 w-8 h-8 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 flex items-center justify-center text-secondary transition-colors"
+        title="Nasıl Kullanılır?"
+      >
+        ?
+      </button>
     </header>
   );
 }

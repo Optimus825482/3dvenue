@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { Header } from "./components/Header";
 import { PhotoUploader } from "./components/PhotoUploader";
 import { QualitySettings } from "./components/QualitySettings";
@@ -7,6 +7,8 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ErrorDisplay } from "./components/ErrorDisplay";
 import { useAppState } from "./hooks/useAppState";
 import "./styles/index.css";
+
+import { TutorialModal } from "./components/TutorialModal";
 
 const Viewer3D = lazy(() =>
   import("./components/Viewer3D").then((m) => ({ default: m.Viewer3D })),
@@ -31,6 +33,17 @@ export default function App() {
     cancelProcessing,
   } = useAppState();
 
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  // Auto-show tutorial on first visit
+  useEffect(() => {
+    const hasSeenTutorial = localStorage.getItem("hasSeenTutorial");
+    if (!hasSeenTutorial) {
+      setShowTutorial(true);
+      localStorage.setItem("hasSeenTutorial", "true");
+    }
+  }, []);
+
   return (
     <div className="relative min-h-screen flex flex-col bg-base text-gray-200">
       {state.error && (
@@ -39,7 +52,15 @@ export default function App() {
           onClear={() => dispatch({ type: "SET_ERROR", error: null })}
         />
       )}
-      <Header currentStep={state.step} />
+      <Header
+        currentStep={state.step}
+        onOpenTutorial={() => setShowTutorial(true)}
+      />
+
+      <TutorialModal
+        isOpen={showTutorial}
+        onClose={() => setShowTutorial(false)}
+      />
 
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-10">
         {state.step === "upload" && (

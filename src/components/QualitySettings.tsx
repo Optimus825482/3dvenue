@@ -1,5 +1,6 @@
 import { QUALITY_ENHANCEMENTS } from "../types";
 import type { QualitySettings, AppAction, ModelSize } from "../types";
+import { useEffect, useState } from "react";
 
 interface Props {
   settings: QualitySettings;
@@ -44,6 +45,23 @@ export function QualitySettings({
 }: Props) {
   const activeCount = countActive(settings);
   const enhancements = QUALITY_ENHANCEMENTS.filter((e) => e.id !== "modelSize");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  useEffect(() => {
+    if (!settings.enableSmoothing) {
+      dispatch({
+        type: "SET_QUALITY",
+        settings: {
+          enableSmoothing: true,
+          enableMultiView: true,
+          enablePointCloud: true,
+          enableEnhancedNormals: true,
+          maxResolution: 1024,
+        },
+      });
+    }
+  }, []);
+
   function setModelSize(size: ModelSize) {
     dispatch({ type: "SET_QUALITY", settings: { modelSize: size } });
   }
@@ -167,14 +185,28 @@ export function QualitySettings({
         </div>
       </div>
 
-      {/* Enhancement Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
-        {enhancements.map((item) => {
-          const enabled = isEnabled(item.id);
-          return (
-            <button
-              key={item.id}
-              className={`
+      {/* Advanced Settings Toggle */}
+      <div className="flex justify-center mb-6">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="flex items-center gap-2 text-xs text-primary/80 hover:text-primary transition-colors hover:underline"
+        >
+          <span>{showAdvanced ? "▼" : "▶"}</span>
+          Gelişmiş Ayarlar (Profesyonel)
+        </button>
+      </div>
+
+      {/* Enhancement Cards (Hidden by default) */}
+      {showAdvanced && (
+        <div className="animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+            {enhancements.map((item) => {
+              const enabled = isEnabled(item.id);
+              return (
+                <button
+                  key={item.id}
+                  className={`
                 relative flex flex-col p-4 rounded-xl border text-left transition-all duration-300 min-h-[140px]
                 ${
                   enabled
@@ -182,51 +214,51 @@ export function QualitySettings({
                     : "bg-surface/30 border-white/5 hover:border-white/10 hover:bg-surface/50"
                 }
               `}
-              onClick={() => toggle(item.id)}
-              type="button"
-            >
-              <div className="flex justify-between items-start mb-2 w-full">
-                <span className="text-2xl filter drop-shadow-lg">
-                  {item.icon}
-                </span>
-                <div
-                  className={`
+                  onClick={() => toggle(item.id)}
+                  type="button"
+                >
+                  <div className="flex justify-between items-start mb-2 w-full">
+                    <span className="text-2xl filter drop-shadow-lg">
+                      {item.icon}
+                    </span>
+                    <div
+                      className={`
                     w-11 h-6 rounded-full p-1 transition-colors duration-300
                     ${enabled ? "bg-success shadow-[0_0_10px_rgba(0,230,138,0.4)]" : "bg-gray-700"}
                   `}
-                >
-                  <div
-                    className={`
+                    >
+                      <div
+                        className={`
                       w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300
                       ${enabled ? "translate-x-5" : "translate-x-0"}
                     `}
-                  />
-                </div>
-              </div>
-
-              <h3
-                className={`font-semibold mb-1 ${enabled ? "text-white" : "text-gray-400"}`}
-              >
-                {item.label}
-              </h3>
-              <p className="text-xs text-gray-500 leading-relaxed mb-4 flex-1">
-                {item.description}
-              </p>
-
-              <div className="flex items-center justify-between w-full pt-3 border-t border-white/5">
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <span
-                        key={i}
-                        className={`text-[10px] ${i < item.impact ? "text-warning" : "text-gray-800"}`}
-                      >
-                        ★
-                      </span>
-                    ))}
+                      />
+                    </div>
                   </div>
-                  <span
-                    className={`
+
+                  <h3
+                    className={`font-semibold mb-1 ${enabled ? "text-white" : "text-gray-400"}`}
+                  >
+                    {item.label}
+                  </h3>
+                  <p className="text-xs text-gray-500 leading-relaxed mb-4 flex-1">
+                    {item.description}
+                  </p>
+
+                  <div className="flex items-center justify-between w-full pt-3 border-t border-white/5">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-0.5">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <span
+                            key={i}
+                            className={`text-[10px] ${i < item.impact ? "text-warning" : "text-gray-800"}`}
+                          >
+                            ★
+                          </span>
+                        ))}
+                      </div>
+                      <span
+                        className={`
                       text-[10px] px-1.5 py-0.5 rounded font-medium
                       ${
                         item.difficulty === "easy"
@@ -234,43 +266,45 @@ export function QualitySettings({
                           : "bg-warning/10 text-warning"
                       }
                     `}
-                  >
-                    {item.difficulty === "easy" ? "Kolay" : "Orta"}
-                  </span>
-                </div>
-                <span className="text-[10px] font-mono text-gray-600">
-                  {item.timeEstimate}
+                      >
+                        {item.difficulty === "easy" ? "Kolay" : "Orta"}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-gray-600">
+                      {item.timeEstimate}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Smoothing slider (visible when enabled) */}
+          {settings.enableSmoothing && (
+            <div className="bg-surface/50 rounded-xl p-4 border border-white/5 mb-8 animate-in slide-in-from-top-2">
+              <div className="flex justify-between mb-2">
+                <label className="text-sm text-gray-300">
+                  Smoothing Iterasyonları
+                </label>
+                <span className="text-sm font-mono text-primary font-bold">
+                  {settings.smoothingIterations}
                 </span>
               </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Smoothing slider (visible when enabled) */}
-      {settings.enableSmoothing && (
-        <div className="bg-surface/50 rounded-xl p-4 border border-white/5 mb-8 animate-in slide-in-from-top-2">
-          <div className="flex justify-between mb-2">
-            <label className="text-sm text-gray-300">
-              Smoothing Iterasyonları
-            </label>
-            <span className="text-sm font-mono text-primary font-bold">
-              {settings.smoothingIterations}
-            </span>
-          </div>
-          <input
-            type="range"
-            min={1}
-            max={10}
-            value={settings.smoothingIterations}
-            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary-dim transition-all"
-            onChange={(e) =>
-              dispatch({
-                type: "SET_QUALITY",
-                settings: { smoothingIterations: parseInt(e.target.value) },
-              })
-            }
-          />
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={settings.smoothingIterations}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary-dim transition-all"
+                onChange={(e) =>
+                  dispatch({
+                    type: "SET_QUALITY",
+                    settings: { smoothingIterations: parseInt(e.target.value) },
+                  })
+                }
+              />
+            </div>
+          )}
         </div>
       )}
 

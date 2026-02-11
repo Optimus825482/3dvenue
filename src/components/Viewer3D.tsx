@@ -78,7 +78,7 @@ export function Viewer3D({
             onClick={onNewProject}
             className="flex items-center gap-2 px-4 py-2 bg-black/60 backdrop-blur-md border border-white/10 rounded-full text-white/80 hover:bg-black/80 hover:text-white transition-all text-sm font-medium"
           >
-            ← Proje
+            ← ✨ Yeni Tarama
           </button>
 
           <div className="bg-black/40 backdrop-blur-md rounded-2xl p-3 border border-white/5">
