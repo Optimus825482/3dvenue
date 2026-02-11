@@ -106,58 +106,6 @@ export function Viewer3D({
             </select>
           </div>
         </div>
-
-        {/* Right: Export Menu */}
-        <div className="relative pointer-events-auto">
-          <button
-            onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-            className={`flex items-center justify-center w-10 h-10 rounded-full bg-primary/20 backdrop-blur-md border border-primary/50 text-primary transition-all shadow-[0_0_15px_rgba(0,212,255,0.3)] hover:scale-110 ${isExportMenuOpen ? "rotate-45 bg-primary text-black" : ""}`}
-          >
-            <span className="text-xl">⤓</span>
-          </button>
-
-          {isExportMenuOpen && (
-            <div className="absolute top-12 right-0 w-48 glass-panel rounded-xl p-2 flex flex-col gap-1 animate-in zoom-in-95 origin-top-right">
-              <span className="text-[10px] text-gray-500 font-mono uppercase px-2 py-1">
-                Export Format
-              </span>
-              <button
-                onClick={() => handleExport("gltf")}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-left text-sm text-gray-200 transition-colors"
-              >
-                <span>📦</span> GLTF{" "}
-                <span className="text-[10px] ml-auto text-gray-600">
-                  Web & AR
-                </span>
-              </button>
-              <button
-                onClick={() => handleExport("obj")}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-left text-sm text-gray-200 transition-colors"
-              >
-                <span>📄</span> OBJ{" "}
-                <span className="text-[10px] ml-auto text-gray-600">
-                  Standard
-                </span>
-              </button>
-              <button
-                onClick={() => handleExport("stl")}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-left text-sm text-gray-200 transition-colors"
-              >
-                <span>🔩</span> STL{" "}
-                <span className="text-[10px] ml-auto text-gray-600">
-                  3D Print
-                </span>
-              </button>
-              <div className="h-px bg-white/10 my-1" />
-              <button
-                onClick={() => handleExport("screenshot")}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/20 text-left text-sm text-primary transition-colors"
-              >
-                <span>📷</span> Screenshot
-              </button>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* ─── 3D Canvas ─── */}
@@ -224,7 +172,7 @@ export function Viewer3D({
       </div>
 
       {/* ─── Bottom Floating Dock ─── */}
-      <div className="absolute bottom-6 inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:max-w-2xl z-20">
+      <div className="absolute bottom-6 inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:max-w-3xl z-20">
         <div className="glass-panel rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
           {/* View Modes */}
           <div className="flex bg-black/40 rounded-xl p-1 border border-white/5 w-full md:w-auto">
@@ -272,8 +220,9 @@ export function Viewer3D({
             </span>
           </div>
 
-          {/* Toggles */}
-          <div className="flex gap-2">
+          {/* Controls Group */}
+          <div className="flex gap-2 w-full md:w-auto justify-end">
+            {/* Grid Toggle */}
             <button
               onClick={() => dispatch({ type: "TOGGLE_GRID" })}
               className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all
@@ -283,6 +232,65 @@ export function Viewer3D({
             >
               ⊞
             </button>
+
+            {/* Export Button (Mobile Optimized) */}
+            <div className="relative">
+              <button
+                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all shadow-[0_0_15px_rgba(0,212,255,0.2)]
+                     ${
+                       isExportMenuOpen
+                         ? "bg-primary text-black border-primary rotate-45"
+                         : "bg-primary/20 text-primary border-primary/50 hover:bg-primary/30"
+                     }
+                   `}
+                title="Export"
+              >
+                <span className="text-xl">⤓</span>
+              </button>
+
+              {isExportMenuOpen && (
+                <div className="absolute bottom-14 right-0 w-48 glass-panel rounded-xl p-2 flex flex-col gap-1 animate-in zoom-in-95 origin-bottom-right">
+                  <span className="text-[10px] text-gray-500 font-mono uppercase px-2 py-1">
+                    Export Format
+                  </span>
+                  <button
+                    onClick={() => handleExport("gltf")}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-left text-sm text-gray-200 transition-colors"
+                  >
+                    <span>📦</span> GLTF{" "}
+                    <span className="text-[10px] ml-auto text-gray-600">
+                      Web
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => handleExport("obj")}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-left text-sm text-gray-200 transition-colors"
+                  >
+                    <span>📄</span> OBJ{" "}
+                    <span className="text-[10px] ml-auto text-gray-600">
+                      Std
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => handleExport("stl")}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-left text-sm text-gray-200 transition-colors"
+                  >
+                    <span>🔩</span> STL{" "}
+                    <span className="text-[10px] ml-auto text-gray-600">
+                      Print
+                    </span>
+                  </button>
+                  <div className="h-px bg-white/10 my-1" />
+                  <button
+                    onClick={() => handleExport("screenshot")}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/20 text-left text-sm text-primary transition-colors"
+                  >
+                    <span>📷</span> Shot
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
