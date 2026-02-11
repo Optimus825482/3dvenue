@@ -20,6 +20,7 @@ const initialState: AppState = {
   photos: [],
   meshes: [],
   progress: null,
+  error: null,
   qualitySettings: { ...DEFAULT_QUALITY },
   viewMode: "textured",
   showGrid: true,
@@ -30,19 +31,26 @@ const initialState: AppState = {
 function reducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "ADD_PHOTOS":
-      return { ...state, photos: [...state.photos, ...action.photos] };
+      return {
+        ...state,
+        photos: [...state.photos, ...action.photos],
+        error: null,
+      };
     case "REMOVE_PHOTO":
       return {
         ...state,
         photos: state.photos.filter((p) => p.id !== action.id),
+        error: null,
       };
     case "CLEAR_PHOTOS":
       state.photos.forEach((p) => URL.revokeObjectURL(p.url));
-      return { ...state, photos: [], meshes: [] };
+      return { ...state, photos: [], meshes: [], error: null };
     case "SET_STEP":
-      return { ...state, step: action.step };
+      return { ...state, step: action.step, error: null };
     case "SET_PROGRESS":
       return { ...state, progress: action.progress };
+    case "SET_ERROR":
+      return { ...state, error: action.error };
     case "ADD_MESH":
       return { ...state, meshes: [...state.meshes, action.mesh] };
     case "SET_MESHES":
@@ -75,30 +83,37 @@ export function useAppState() {
 
   const addPhotos = useCallback(
     async (files: FileList | File[]) => {
-      const fileArray = Array.from(files);
-      const remaining = 50 - state.photos.length;
-      const toAdd = fileArray.slice(0, remaining);
+      try {
+        const fileArray = Array.from(files);
+        const remaining = 50 - state.photos.length;
+        const toAdd = fileArray.slice(0, remaining);
 
-      const newPhotos: PhotoFile[] = await Promise.all(
-        toAdd.map(async (file) => {
-          const url = URL.createObjectURL(file);
-          const { width, height } = await getImageDimensions(url);
-          return {
-            id:
-              Math.random().toString(36).substring(2, 15) +
-              Math.random().toString(36).substring(2, 15),
-            file,
-            name: file.name,
-            size: file.size,
-            url,
-            thumbnail: url,
-            width,
-            height,
-          };
-        }),
-      );
+        const newPhotos: PhotoFile[] = await Promise.all(
+          toAdd.map(async (file) => {
+            const url = URL.createObjectURL(file);
+            const { width, height } = await getImageDimensions(url);
+            return {
+              id:
+                Math.random().toString(36).substring(2, 15) +
+                Math.random().toString(36).substring(2, 15),
+              file,
+              name: file.name,
+              size: file.size,
+              url,
+              thumbnail: url,
+              width,
+              height,
+            };
+          }),
+        );
 
-      dispatch({ type: "ADD_PHOTOS", photos: newPhotos });
+        dispatch({ type: "ADD_PHOTOS", photos: newPhotos });
+      } catch (e) {
+        dispatch({
+          type: "SET_ERROR",
+          error: "Fotoğraflar eklenirken bir hata oluştu.",
+        });
+      }
     },
     [state.photos.length],
   );
@@ -259,8 +274,35 @@ export function useAppState() {
         dispatch({ type: "SET_STEP", step: "viewer" });
         dispatch({ type: "SET_PROGRESS", progress: null });
       }, 800);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Processing error:", error);
+      let errorMessage = "İşlem sırasında beklenmeyen bir hata oluştu.";
+
+      if (error instanceof Error) {
+        if (
+          error.message.includes("memory") ||
+          error.message.includes("allocation")
+        ) {
+          errorMessage =
+            "Cihaz hafızası doldu. Daha az fotoğraf veya 'Low Res' deneyin.";
+        } else if (
+          error.message.includes("fetch") ||
+          error.message.includes("network")
+        ) {
+          errorMessage =
+            "Model indirilemedi. İnternet bağlantınızı kontrol edin.";
+        } else if (
+          error.message.includes("context") ||
+          error.message.includes("webgl")
+        ) {
+          errorMessage =
+            "WebGL bağlamı oluşturulamadı. Tarayıcınızı güncelleyin.";
+        } else {
+          errorMessage = `Hata detayı: ${error.message}`;
+        }
+      }
+
+      dispatch({ type: "SET_ERROR", error: errorMessage });
       dispatch({ type: "SET_STEP", step: "settings" });
       dispatch({ type: "SET_PROGRESS", progress: null });
     }

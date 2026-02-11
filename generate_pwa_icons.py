@@ -24,5 +24,10 @@ def generate_icons():
     img_180.save("public/apple-touch-icon.png")
     print("Generated public/apple-touch-icon.png")
 
+    # Favicon PNG (32x32) - For browsers that request it
+    img_32 = img.resize((32, 32), Image.Resampling.LANCZOS)
+    img_32.save("public/favicon.png")
+    print("Generated public/favicon.png")
+
 if __name__ == "__main__":
     generate_icons()

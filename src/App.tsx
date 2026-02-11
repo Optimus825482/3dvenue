@@ -3,7 +3,7 @@ import { Header } from "./components/Header";
 import { PhotoUploader } from "./components/PhotoUploader";
 import { QualitySettings } from "./components/QualitySettings";
 import { ProcessingView } from "./components/ProcessingView";
-import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ErrorDisplay } from "./components/ErrorDisplay";
 import { useAppState } from "./hooks/useAppState";
 import "./styles/index.css";
 
@@ -32,6 +32,12 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen flex flex-col bg-base text-gray-200">
+      {state.error && (
+        <ErrorDisplay
+          error={state.error}
+          onClear={() => dispatch({ type: "SET_ERROR", error: null })}
+        />
+      )}
       <Header currentStep={state.step} />
 
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-10">

@@ -149,6 +149,7 @@ export interface AppState {
   photos: PhotoFile[];
   meshes: ProcessedMesh[];
   progress: ProcessingProgress | null;
+  error: string | null;
   qualitySettings: QualitySettings;
   viewMode: ViewMode;
   showGrid: boolean;
@@ -162,6 +163,7 @@ export type AppAction =
   | { type: "CLEAR_PHOTOS" }
   | { type: "SET_STEP"; step: AppStep }
   | { type: "SET_PROGRESS"; progress: ProcessingProgress | null }
+  | { type: "SET_ERROR"; error: string | null }
   | { type: "ADD_MESH"; mesh: ProcessedMesh }
   | { type: "SET_MESHES"; meshes: ProcessedMesh[] }
   | { type: "SET_QUALITY"; settings: Partial<QualitySettings> }
