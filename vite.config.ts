@@ -11,6 +11,10 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["vite.svg", "robots.txt"],
+      workbox: {
+        maximumFileSizeToCacheInBytes: 30000000,
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
+      },
       manifest: {
         name: "3D Venue Architect",
         short_name: "3D Venue",
