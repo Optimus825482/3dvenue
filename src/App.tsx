@@ -3,6 +3,7 @@ import { Header } from "./components/Header";
 import { PhotoUploader } from "./components/PhotoUploader";
 import { QualitySettings } from "./components/QualitySettings";
 import { ProcessingView } from "./components/ProcessingView";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ErrorDisplay } from "./components/ErrorDisplay";
 import { useAppState } from "./hooks/useAppState";
 import "./styles/index.css";

@@ -51,15 +51,20 @@ export function QualitySettings({
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (mobile && settings.modelSize !== "small") {
-        dispatch({ type: "SET_QUALITY", settings: { modelSize: "small" } });
+      if (mobile) {
+        if (settings.modelSize !== "small") {
+          dispatch({ type: "SET_QUALITY", settings: { modelSize: "small" } });
+        }
+        if (settings.maxResolution > 512) {
+          dispatch({ type: "SET_QUALITY", settings: { maxResolution: 512 } });
+        }
       }
     };
 
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
-  }, [settings.modelSize, dispatch]);
+  }, [settings.modelSize, settings.maxResolution, dispatch]);
 
   function setModelSize(size: ModelSize) {
     if (isMobile && size !== "small") return;
@@ -67,6 +72,8 @@ export function QualitySettings({
   }
 
   function toggle(id: string) {
+    if (isMobile && id === "maxResolution") return;
+
     switch (id) {
       case "maxResolution":
         dispatch({
@@ -197,6 +204,7 @@ export function QualitySettings({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
         {enhancements.map((item) => {
           const enabled = isEnabled(item.id);
+          const isDisabled = isMobile && item.id === "maxResolution";
           return (
             <button
               key={item.id}
@@ -207,9 +215,11 @@ export function QualitySettings({
                     ? "bg-gradient-to-br from-surface to-primary/5 border-primary/50 shadow-[0_4px_20px_rgba(0,0,0,0.2)]"
                     : "bg-surface/30 border-white/5 hover:border-white/10 hover:bg-surface/50"
                 }
+                ${isDisabled ? "opacity-40 cursor-not-allowed grayscale" : ""}
               `}
               onClick={() => toggle(item.id)}
               type="button"
+              disabled={isDisabled}
             >
               <div className="flex justify-between items-start mb-2 w-full">
                 <span className="text-2xl filter drop-shadow-lg">
@@ -238,6 +248,12 @@ export function QualitySettings({
               <p className="text-xs text-gray-500 leading-relaxed mb-4 flex-1">
                 {item.description}
               </p>
+
+              {isDisabled && (
+                <span className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] rounded-xl text-[10px] font-mono text-white/50 uppercase tracking-widest border border-white/5">
+                  Desktop Only
+                </span>
+              )}
 
               <div className="flex items-center justify-between w-full pt-3 border-t border-white/5">
                 <div className="flex items-center gap-2">
