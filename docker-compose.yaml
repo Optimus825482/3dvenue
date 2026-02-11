@@ -7,8 +7,8 @@ services:
       dockerfile: Dockerfile
     container_name: 3d-venue-app
     restart: always
-    ports:
-      - "3000:80"
+    expose:
+      - "80"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost/health"]
       interval: 30s
