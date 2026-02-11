@@ -104,3 +104,82 @@ body::before {
 .app-main {
   @apply flex-1 w-full max-w-[1400px] mx-auto px-4 py-6 md:px-8 md:py-10;
 }
+/* ─── Futuristic Animations ─── */
+@keyframes scanbeam {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px var(--accent-glow);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 40px var(--color-primary);
+    opacity: 0.8;
+  }
+}
+
+@keyframes holograph {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ─── Utility Classes ─── */
+.glass-panel {
+  @apply bg-surface/40 backdrop-blur-xl border border-white/10 shadow-2xl;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.neon-text {
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+}
+
+.neon-border {
+  box-shadow:
+    0 0 10px rgba(0, 212, 255, 0.2),
+    inset 0 0 20px rgba(0, 212, 255, 0.05);
+}
+
+.scan-line {
+  @apply absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50;
+  animation: scanbeam 3s linear infinite;
+}
+
+.holo-card {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.01) 100%
+  );
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
