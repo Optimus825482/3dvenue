@@ -1,51 +1,3 @@
-import { useRef, useCallback, useEffect, Suspense } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
-import { OrbitControls, Grid, Environment, Center } from "@react-three/drei";
-import type { ProcessedMesh, ViewMode, AppAction } from "../types";
-import { DepthMesh } from "./DepthMesh";
-import {
-  exportGLTF,
-  exportOBJ,
-  exportSTL,
-  exportScreenshot,
-} from "../engine/Exporter";
-
-interface Props {
-  meshes: ProcessedMesh[];
-  viewMode: ViewMode;
-  showGrid: boolean;
-  depthScale: number;
-  selectedMeshIndex: number;
-  dispatch: React.Dispatch<AppAction>;
-  onNewProject: () => void;
-}
-
-function SceneExporter({
-  exportRef,
-}: {
-  exportRef: React.MutableRefObject<ExportFns | null>;
-}) {
-  const { scene, gl } = useThree();
-
-  useEffect(() => {
-    exportRef.current = {
-      gltf: () => exportGLTF(scene),
-      obj: () => exportOBJ(scene),
-      stl: () => exportSTL(scene),
-      screenshot: () => exportScreenshot(gl),
-    };
-  }, [scene, gl, exportRef]);
-
-  return null;
-}
-
-interface ExportFns {
-  gltf: () => void;
-  obj: () => void;
-  stl: () => void;
-  screenshot: () => void;
-}
-
 import { useRef, useCallback, useEffect, Suspense, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, Environment, Center } from "@react-three/drei";
@@ -68,6 +20,13 @@ interface Props {
   onNewProject: () => void;
 }
 
+interface ExportFns {
+  gltf: () => void;
+  obj: () => void;
+  stl: () => void;
+  screenshot: () => void;
+}
+
 function SceneExporter({
   exportRef,
 }: {
@@ -85,13 +44,6 @@ function SceneExporter({
   }, [scene, gl, exportRef]);
 
   return null;
-}
-
-interface ExportFns {
-  gltf: () => void;
-  obj: () => void;
-  stl: () => void;
-  screenshot: () => void;
 }
 
 export function Viewer3D({
