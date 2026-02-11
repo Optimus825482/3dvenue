@@ -8,6 +8,7 @@ interface MeshOptions {
   segmentsX?: number;
   segmentsY?: number;
   enhancedNormals?: boolean;
+  outlierRemoval?: boolean;
 }
 
 export function generateDepthMesh({
@@ -18,6 +19,7 @@ export function generateDepthMesh({
   segmentsX,
   segmentsY,
   enhancedNormals = false,
+  outlierRemoval = true, // Default true for better quality
 }: MeshOptions): PlaneGeometry {
   const maxSegments = 200;
   const aspect = width / height;
@@ -42,6 +44,40 @@ export function generateDepthMesh({
 
     const depth = depthMap[idx] ?? 0;
     positions.setZ(i, depth * depthScale);
+  }
+
+  // Statistical Outlier Removal
+  if (outlierRemoval) {
+    let mean = 0;
+    let count = 0;
+    // 1. Calculate Mean
+    for (let i = 0; i < vertexCount; i++) {
+      const z = positions.getZ(i);
+      if (z > 0) {
+        mean += z;
+        count++;
+      }
+    }
+    mean /= count || 1;
+
+    // 2. Calculate Std Dev
+    let variance = 0;
+    for (let i = 0; i < vertexCount; i++) {
+      const z = positions.getZ(i);
+      if (z > 0) {
+        variance += Math.pow(z - mean, 2);
+      }
+    }
+    const stdDev = Math.sqrt(variance / (count || 1));
+
+    // 3. Filter Outliers (Threshold: Mean + 2.5*StdDev)
+    const threshold = mean + 2.5 * stdDev;
+
+    for (let i = 0; i < vertexCount; i++) {
+      if (positions.getZ(i) > threshold) {
+        positions.setZ(i, 0);
+      }
+    }
   }
 
   positions.needsUpdate = true;

@@ -1,6 +1,12 @@
 import { useRef, useCallback, useEffect, Suspense, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, Environment, Center } from "@react-three/drei";
+import {
+  EffectComposer,
+  SSAO,
+  Bloom,
+  ToneMapping,
+} from "@react-three/postprocessing";
 import type { ProcessedMesh, ViewMode, AppAction } from "../types";
 import { DepthMesh } from "./DepthMesh";
 import {
@@ -168,6 +174,17 @@ export function Viewer3D({
           />
 
           <SceneExporter exportRef={exportRef} />
+
+          <EffectComposer>
+            <SSAO radius={0.4} intensity={50} luminanceInfluence={0.4} />
+            <Bloom
+              luminanceThreshold={0.5}
+              mipmapBlur
+              intensity={0.5}
+              radius={0.4}
+            />
+            <ToneMapping adaptive />
+          </EffectComposer>
         </Canvas>
       </div>
 
