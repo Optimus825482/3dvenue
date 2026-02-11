@@ -84,7 +84,9 @@ export function useAppState() {
           const url = URL.createObjectURL(file);
           const { width, height } = await getImageDimensions(url);
           return {
-            id: crypto.randomUUID(),
+            id:
+              Math.random().toString(36).substring(2, 15) +
+              Math.random().toString(36).substring(2, 15),
             file,
             name: file.name,
             size: file.size,
