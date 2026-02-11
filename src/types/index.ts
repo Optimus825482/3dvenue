@@ -171,4 +171,5 @@ export type AppAction =
   | { type: "TOGGLE_GRID" }
   | { type: "SET_DEPTH_SCALE"; scale: number }
   | { type: "SET_SELECTED_MESH"; index: number }
-  | { type: "RESET" };
+  | { type: "RESET" }
+  | { type: "RESTORE_STATE"; state: AppState };

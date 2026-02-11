@@ -1,4 +1,4 @@
-import { useCallback, useReducer, useRef } from "react";
+import { useCallback, useReducer, useRef, useEffect } from "react";
 import type {
   PhotoFile,
   ProcessedMesh,
@@ -14,6 +14,7 @@ import {
 } from "../engine/DepthEstimator";
 import { generateDepthMesh, smoothMesh } from "../engine/MeshGenerator";
 import { alignMeshes, mergePointClouds } from "../engine/MultiViewAligner";
+import { PersistenceService } from "../engine/Persistence";
 
 const initialState: AppState = {
   step: "upload",
@@ -71,7 +72,11 @@ function reducer(state: AppState, action: AppAction): AppState {
     case "RESET":
       state.photos.forEach((p) => URL.revokeObjectURL(p.url));
       disposeModel();
+      PersistenceService.clearState(); // Clear IDB
+      PersistenceService.clearAppCache(); // Clear PWA cache
       return { ...initialState };
+    case "RESTORE_STATE":
+      return action.state;
     default:
       return state;
   }
@@ -80,6 +85,25 @@ function reducer(state: AppState, action: AppAction): AppState {
 export function useAppState() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const cancelRef = useRef(false);
+
+  // Load persisted state on mount
+  useEffect(() => {
+    PersistenceService.loadState().then((persistedState) => {
+      if (persistedState) {
+        dispatch({ type: "RESTORE_STATE", state: persistedState });
+      }
+    });
+  }, []);
+
+  // Save state on change (Debounced 1s)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (state.photos.length > 0) {
+        PersistenceService.saveState(state);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [state]);
 
   const addPhotos = useCallback(
     async (files: FileList | File[]) => {
