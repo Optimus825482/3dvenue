@@ -111,7 +111,12 @@ export function ProcessingView({ progress, onCancel }: Props) {
               <span>
                 Step {progress.current}/{progress.total}
               </span>
-              <span>EST_TIME: --:--</span>
+              <span>
+                EST_TIME:{" "}
+                {progress.estimatedTimeRemaining
+                  ? `${Math.ceil(progress.estimatedTimeRemaining / 1000)}s`
+                  : "--:--"}
+              </span>
             </div>
           </div>
 

@@ -141,6 +141,7 @@ export interface ProcessingProgress {
     | "aligning"
     | "merging"
     | "complete";
+  estimatedTimeRemaining?: number;
 }
 
 export interface AppState {
