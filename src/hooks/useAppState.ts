@@ -5,6 +5,7 @@ import type {
   AppState,
   AppAction,
   QualitySettings,
+  ModelSize,
 } from "../types";
 import { DEFAULT_QUALITY } from "../types";
 import {
@@ -12,9 +13,15 @@ import {
   estimateDepth,
   disposeModel,
 } from "../engine/DepthEstimator";
-import { generateDepthMesh, smoothMesh } from "../engine/MeshGenerator";
+import {
+  generateDepthMesh,
+  smoothMesh,
+  generateNormalMapFromDepth,
+  createNormalTexture,
+} from "../engine/MeshGenerator";
 import { alignMeshes, mergePointClouds } from "../engine/MultiViewAligner";
 import { PersistenceService } from "../engine/Persistence";
+import { extractCameraIntrinsics } from "../engine/ExifParser";
 
 const initialState: AppState = {
   step: "upload",
@@ -25,7 +32,7 @@ const initialState: AppState = {
   qualitySettings: { ...DEFAULT_QUALITY },
   viewMode: "textured",
   showGrid: true,
-  depthScale: 2.0,
+  depthScale: 1.5,
   selectedMeshIndex: 0,
 };
 
@@ -115,7 +122,10 @@ export function useAppState() {
         const newPhotos: PhotoFile[] = await Promise.all(
           toAdd.map(async (file) => {
             const url = URL.createObjectURL(file);
-            const { width, height } = await getImageDimensions(url);
+            const [{ width, height }, cameraIntrinsics] = await Promise.all([
+              getImageDimensions(url),
+              extractCameraIntrinsics(file),
+            ]);
             return {
               id:
                 Math.random().toString(36).substring(2, 15) +
@@ -127,6 +137,7 @@ export function useAppState() {
               thumbnail: url,
               width,
               height,
+              ...(cameraIntrinsics ? { cameraIntrinsics } : {}),
             };
           }),
         );
@@ -142,195 +153,209 @@ export function useAppState() {
     [state.photos.length],
   );
 
-  const goToSettings = useCallback(() => {
-    if (state.photos.length >= 1) {
-      dispatch({ type: "SET_STEP", step: "settings" });
-    }
-  }, [state.photos.length]);
+  const startProcessing = useCallback(
+    async (modelSize: ModelSize = "large") => {
+      if (state.photos.length < 1) return;
 
-  const processPhotos = useCallback(async () => {
-    if (state.photos.length < 1) return;
-
-    const qs: QualitySettings = state.qualitySettings;
-    cancelRef.current = false;
-    dispatch({ type: "SET_STEP", step: "processing" });
-    dispatch({
-      type: "SET_PROGRESS",
-      progress: {
-        current: 0,
-        total: state.photos.length,
-        percentage: 0,
-        currentPhotoName: "",
-        phase: "loading-model",
-      },
-    });
-
-    try {
-      // Phase 1: Load model
-      await loadModel(qs.modelSize, (msg) => {
-        dispatch({
-          type: "SET_PROGRESS",
-          progress: {
-            current: 0,
-            total: state.photos.length,
-            percentage: 0,
-            currentPhotoName: msg,
-            phase: "loading-model",
-          },
-        });
+      // Always use max quality with selected model size
+      const qs: QualitySettings = { ...state.qualitySettings, modelSize };
+      dispatch({ type: "SET_QUALITY", settings: { modelSize } });
+      cancelRef.current = false;
+      dispatch({ type: "SET_STEP", step: "processing" });
+      dispatch({
+        type: "SET_PROGRESS",
+        progress: {
+          current: 0,
+          total: state.photos.length,
+          percentage: 0,
+          currentPhotoName: "",
+          phase: "loading-model",
+        },
       });
 
-      const meshes: ProcessedMesh[] = [];
-
-      // Phase 2: Estimate depth + generate mesh for each photo
-      for (let i = 0; i < state.photos.length; i++) {
-        if (cancelRef.current) {
-          dispatch({ type: "SET_STEP", step: "settings" });
-          dispatch({ type: "SET_PROGRESS", progress: null });
-          return;
-        }
-
-        const photo = state.photos[i];
-        dispatch({
-          type: "SET_PROGRESS",
-          progress: {
-            current: i,
-            total: state.photos.length,
-            percentage: Math.round((i / state.photos.length) * 70),
-            currentPhotoName: photo.name,
-            phase: "estimating",
-          },
+      try {
+        // Phase 1: Load model
+        await loadModel(qs.modelSize, (msg) => {
+          dispatch({
+            type: "SET_PROGRESS",
+            progress: {
+              current: 0,
+              total: state.photos.length,
+              percentage: 0,
+              currentPhotoName: msg,
+              phase: "loading-model",
+            },
+          });
         });
 
-        const { depthMap, width, height } = await estimateDepth(
-          photo.url,
-          qs.maxResolution,
-        );
+        const meshes: ProcessedMesh[] = [];
 
-        dispatch({
-          type: "SET_PROGRESS",
-          progress: {
-            current: i,
-            total: state.photos.length,
-            percentage: Math.round(((i + 0.5) / state.photos.length) * 70),
-            currentPhotoName: photo.name,
-            phase: "generating-mesh",
-          },
-        });
+        // Phase 2: Estimate depth + generate mesh for each photo
+        for (let i = 0; i < state.photos.length; i++) {
+          if (cancelRef.current) {
+            dispatch({ type: "SET_STEP", step: "upload" });
+            dispatch({ type: "SET_PROGRESS", progress: null });
+            return;
+          }
 
-        let geometry = generateDepthMesh({
-          depthMap,
-          width,
-          height,
-          depthScale: state.depthScale,
-          enhancedNormals: qs.enableEnhancedNormals,
-        });
-
-        // Phase 3: Smoothing (if enabled)
-        if (qs.enableSmoothing) {
+          const photo = state.photos[i];
           dispatch({
             type: "SET_PROGRESS",
             progress: {
               current: i,
               total: state.photos.length,
-              percentage: Math.round(((i + 0.7) / state.photos.length) * 70),
+              percentage: Math.round((i / state.photos.length) * 70),
               currentPhotoName: photo.name,
-              phase: "smoothing",
+              phase: "estimating",
             },
           });
-          geometry = smoothMesh(geometry, qs.smoothingIterations);
+
+          const { depthMap, width, height } = await estimateDepth(
+            photo.url,
+            qs.maxResolution,
+          );
+
+          dispatch({
+            type: "SET_PROGRESS",
+            progress: {
+              current: i,
+              total: state.photos.length,
+              percentage: Math.round(((i + 0.5) / state.photos.length) * 70),
+              currentPhotoName: photo.name,
+              phase: "generating-mesh",
+            },
+          });
+
+          let geometry = generateDepthMesh({
+            depthMap,
+            width,
+            height,
+            depthScale: state.depthScale,
+            enhancedNormals: qs.enableEnhancedNormals,
+            perspective: qs.enablePerspective,
+            stretchRemoval: qs.enableStretchRemoval,
+            stretchThreshold: qs.stretchThreshold,
+            fov: photo.cameraIntrinsics?.fov,
+            cameraIntrinsics: photo.cameraIntrinsics,
+          });
+
+          // Phase 3: Smoothing (if enabled)
+          if (qs.enableSmoothing) {
+            dispatch({
+              type: "SET_PROGRESS",
+              progress: {
+                current: i,
+                total: state.photos.length,
+                percentage: Math.round(((i + 0.7) / state.photos.length) * 70),
+                currentPhotoName: photo.name,
+                phase: "smoothing",
+              },
+            });
+            geometry = smoothMesh(geometry, qs.smoothingIterations);
+          }
+
+          // Generate normal map from depth data
+          const normalData = generateNormalMapFromDepth(
+            depthMap,
+            width,
+            height,
+            1.5,
+          );
+          const normalTexture = createNormalTexture(normalData, width, height);
+
+          meshes.push({
+            photoId: photo.id,
+            geometry,
+            textureUrl: photo.url,
+            depthMap,
+            width,
+            height,
+            normalMap: normalTexture,
+          });
         }
 
-        meshes.push({
-          photoId: photo.id,
-          geometry,
-          textureUrl: photo.url,
-          depthMap,
-          width,
-          height,
-        });
-      }
+        // Phase 4: Multi-view alignment (if enabled)
+        let finalMeshes = meshes;
+        if (qs.enableMultiView && meshes.length > 1) {
+          dispatch({
+            type: "SET_PROGRESS",
+            progress: {
+              current: state.photos.length,
+              total: state.photos.length,
+              percentage: 80,
+              currentPhotoName: "Mesh'ler hizalanıyor...",
+              phase: "aligning",
+            },
+          });
+          finalMeshes = alignMeshes(meshes);
+        }
 
-      // Phase 4: Multi-view alignment (if enabled)
-      let finalMeshes = meshes;
-      if (qs.enableMultiView && meshes.length > 1) {
+        // Phase 5: Point cloud merge (if enabled)
+        if (qs.enablePointCloud && finalMeshes.length > 1) {
+          dispatch({
+            type: "SET_PROGRESS",
+            progress: {
+              current: state.photos.length,
+              total: state.photos.length,
+              percentage: 90,
+              currentPhotoName: "Point cloud birleştiriliyor...",
+              phase: "merging",
+            },
+          });
+          finalMeshes = mergePointClouds(finalMeshes);
+        }
+
+        dispatch({ type: "SET_MESHES", meshes: finalMeshes });
         dispatch({
           type: "SET_PROGRESS",
           progress: {
             current: state.photos.length,
             total: state.photos.length,
-            percentage: 80,
-            currentPhotoName: "Mesh'ler hizalanıyor...",
-            phase: "aligning",
+            percentage: 100,
+            currentPhotoName: "Tamamlandı!",
+            phase: "complete",
           },
         });
-        finalMeshes = alignMeshes(meshes);
-      }
 
-      // Phase 5: Point cloud merge (if enabled)
-      if (qs.enablePointCloud && finalMeshes.length > 1) {
-        dispatch({
-          type: "SET_PROGRESS",
-          progress: {
-            current: state.photos.length,
-            total: state.photos.length,
-            percentage: 90,
-            currentPhotoName: "Point cloud birleştiriliyor...",
-            phase: "merging",
-          },
-        });
-        finalMeshes = mergePointClouds(finalMeshes);
-      }
+        setTimeout(() => {
+          dispatch({ type: "SET_STEP", step: "viewer" });
+          dispatch({ type: "SET_PROGRESS", progress: null });
+        }, 800);
+      } catch (error: any) {
+        console.error("Processing error:", error);
+        let errorMessage = "İşlem sırasında beklenmeyen bir hata oluştu.";
 
-      dispatch({ type: "SET_MESHES", meshes: finalMeshes });
-      dispatch({
-        type: "SET_PROGRESS",
-        progress: {
-          current: state.photos.length,
-          total: state.photos.length,
-          percentage: 100,
-          currentPhotoName: "Tamamlandı!",
-          phase: "complete",
-        },
-      });
+        if (error instanceof Error) {
+          if (
+            error.message.includes("memory") ||
+            error.message.includes("allocation")
+          ) {
+            errorMessage =
+              "Cihaz hafızası doldu. Daha az fotoğraf veya 'Low Res' deneyin.";
+          } else if (
+            error.message.includes("fetch") ||
+            error.message.includes("network")
+          ) {
+            errorMessage =
+              "Model indirilemedi. İnternet bağlantınızı kontrol edin.";
+          } else if (
+            error.message.includes("context") ||
+            error.message.includes("webgl")
+          ) {
+            errorMessage =
+              "WebGL bağlamı oluşturulamadı. Tarayıcınızı güncelleyin.";
+          } else {
+            errorMessage = `Hata detayı: ${error.message}`;
+          }
+        }
 
-      setTimeout(() => {
-        dispatch({ type: "SET_STEP", step: "viewer" });
+        dispatch({ type: "SET_ERROR", error: errorMessage });
+        dispatch({ type: "SET_STEP", step: "upload" });
         dispatch({ type: "SET_PROGRESS", progress: null });
-      }, 800);
-    } catch (error: any) {
-      console.error("Processing error:", error);
-      let errorMessage = "İşlem sırasında beklenmeyen bir hata oluştu.";
-
-      if (error instanceof Error) {
-        if (
-          error.message.includes("memory") ||
-          error.message.includes("allocation")
-        ) {
-          errorMessage =
-            "Cihaz hafızası doldu. Daha az fotoğraf veya 'Low Res' deneyin.";
-        } else if (
-          error.message.includes("fetch") ||
-          error.message.includes("network")
-        ) {
-          errorMessage =
-            "Model indirilemedi. İnternet bağlantınızı kontrol edin.";
-        } else if (
-          error.message.includes("context") ||
-          error.message.includes("webgl")
-        ) {
-          errorMessage =
-            "WebGL bağlamı oluşturulamadı. Tarayıcınızı güncelleyin.";
-        } else {
-          errorMessage = `Hata detayı: ${error.message}`;
-        }
       }
-
-      dispatch({ type: "SET_ERROR", error: errorMessage });
-      dispatch({ type: "SET_STEP", step: "settings" });
-      dispatch({ type: "SET_PROGRESS", progress: null });
-    }
-  }, [state.photos, state.depthScale, state.qualitySettings]);
+    },
+    [state.photos, state.depthScale, state.qualitySettings],
+  );
 
   const cancelProcessing = useCallback(() => {
     cancelRef.current = true;
@@ -340,8 +365,7 @@ export function useAppState() {
     state,
     dispatch,
     addPhotos,
-    goToSettings,
-    processPhotos,
+    startProcessing,
     cancelProcessing,
   };
 }

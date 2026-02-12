@@ -1,6 +1,6 @@
 import { QUALITY_ENHANCEMENTS } from "../types";
 import type { QualitySettings, AppAction, ModelSize } from "../types";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 interface Props {
   settings: QualitySettings;
@@ -47,21 +47,6 @@ export function QualitySettings({
   const enhancements = QUALITY_ENHANCEMENTS.filter((e) => e.id !== "modelSize");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  useEffect(() => {
-    if (!settings.enableSmoothing) {
-      dispatch({
-        type: "SET_QUALITY",
-        settings: {
-          enableSmoothing: true,
-          enableMultiView: true,
-          enablePointCloud: true,
-          enableEnhancedNormals: true,
-          maxResolution: 1024,
-        },
-      });
-    }
-  }, []);
-
   function setModelSize(size: ModelSize) {
     dispatch({ type: "SET_QUALITY", settings: { modelSize: size } });
   }
@@ -100,6 +85,18 @@ export function QualitySettings({
           settings: { enableEnhancedNormals: !settings.enableEnhancedNormals },
         });
         break;
+      case "enablePerspective":
+        dispatch({
+          type: "SET_QUALITY",
+          settings: { enablePerspective: !settings.enablePerspective },
+        });
+        break;
+      case "enableStretchRemoval":
+        dispatch({
+          type: "SET_QUALITY",
+          settings: { enableStretchRemoval: !settings.enableStretchRemoval },
+        });
+        break;
     }
   }
 
@@ -115,6 +112,10 @@ export function QualitySettings({
         return settings.enablePointCloud;
       case "enableEnhancedNormals":
         return settings.enableEnhancedNormals;
+      case "enablePerspective":
+        return settings.enablePerspective;
+      case "enableStretchRemoval":
+        return settings.enableStretchRemoval;
       default:
         return false;
     }
@@ -279,9 +280,34 @@ export function QualitySettings({
             })}
           </div>
 
+          {settings.enablePointCloud && (
+            <div className="bg-surface/50 rounded-xl p-4 border border-white/5 mb-4 animate-in slide-in-from-top-2">
+              <div className="flex justify-between mb-2">
+                <label className="text-sm text-gray-300">Nokta Boyutu</label>
+                <span className="text-sm font-mono text-primary font-bold">
+                  {settings.pointSize}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.01"
+                max="0.2"
+                step="0.01"
+                value={settings.pointSize}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary-dim transition-all"
+                onChange={(e) =>
+                  dispatch({
+                    type: "SET_QUALITY",
+                    settings: { pointSize: parseFloat(e.target.value) },
+                  })
+                }
+              />
+            </div>
+          )}
+
           {/* Smoothing slider (visible when enabled) */}
           {settings.enableSmoothing && (
-            <div className="bg-surface/50 rounded-xl p-4 border border-white/5 mb-8 animate-in slide-in-from-top-2">
+            <div className="bg-surface/50 rounded-xl p-4 border border-white/5 mb-4 animate-in slide-in-from-top-2">
               <div className="flex justify-between mb-2">
                 <label className="text-sm text-gray-300">
                   Smoothing Iterasyonları
@@ -305,6 +331,127 @@ export function QualitySettings({
               />
             </div>
           )}
+
+          {/* Stretch Threshold slider (visible when enabled) */}
+          {settings.enableStretchRemoval && (
+            <div className="bg-surface/50 rounded-xl p-4 border border-white/5 mb-8 animate-in slide-in-from-top-2">
+              <div className="flex justify-between mb-2">
+                <label className="text-sm text-gray-300">
+                  Yırtılma Eşiği (Düşük = Daha Keskin Kesim)
+                </label>
+                <span className="text-sm font-mono text-primary font-bold">
+                  {settings.stretchThreshold}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.05"
+                max="1.0"
+                step="0.05"
+                value={settings.stretchThreshold}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary-dim transition-all"
+                onChange={(e) =>
+                  dispatch({
+                    type: "SET_QUALITY",
+                    settings: { stretchThreshold: parseFloat(e.target.value) },
+                  })
+                }
+              />
+              <p className="text-[10px] text-gray-500 mt-2">
+                * Objeler arası "uzayan" yüzeyleri temizlemek için bu değeri
+                düşürün. Çok düşük olursa delikler oluşabilir.
+              </p>
+            </div>
+          )}
+
+          {/* New Material & Lighting Controls */}
+          <div className="bg-surface/50 rounded-xl p-4 border border-white/5 mb-6 animate-in slide-in-from-top-3">
+            <h4 className="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
+              <span>🎨</span> Materyal ve Işık
+            </h4>
+
+            {/* Environment Preset */}
+            <div className="mb-5">
+              <label className="text-xs text-gray-400 block mb-2">
+                Ortam Işığı
+              </label>
+              <div className="grid grid-cols-5 gap-1">
+                {["city", "studio", "sunset", "dawn", "night"].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() =>
+                      dispatch({
+                        type: "SET_QUALITY",
+                        settings: { environmentPreset: preset as any },
+                      })
+                    }
+                    className={`
+                      px-1 py-1.5 rounded text-[10px] capitalize transition-all border
+                      ${settings.environmentPreset === preset
+                        ? "bg-primary text-black border-primary font-bold"
+                        : "bg-black/20 text-gray-400 border-white/5 hover:bg-white/5"
+                      }
+                    `}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Roughness Slider */}
+            <div className="mb-4">
+              <div className="flex justify-between mb-2">
+                <label className="text-xs text-gray-300">
+                  Matlık (Roughness)
+                </label>
+                <span className="text-xs font-mono text-gray-400">
+                  {settings.roughness}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={settings.roughness}
+                className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-warning hover:accent-warning-dim"
+                onChange={(e) =>
+                  dispatch({
+                    type: "SET_QUALITY",
+                    settings: { roughness: parseFloat(e.target.value) },
+                  })
+                }
+              />
+            </div>
+
+            {/* Metalness Slider */}
+            <div>
+              <div className="flex justify-between mb-2">
+                <label className="text-xs text-gray-300">
+                  Metalik (Metalness)
+                </label>
+                <span className="text-xs font-mono text-gray-400">
+                  {settings.metalness}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={settings.metalness}
+                className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-400 hover:accent-blue-300"
+                onChange={(e) =>
+                  dispatch({
+                    type: "SET_QUALITY",
+                    settings: { metalness: parseFloat(e.target.value) },
+                  })
+                }
+              />
+            </div>
+          </div>
         </div>
       )}
 
@@ -349,5 +496,7 @@ function countActive(s: QualitySettings): number {
   if (s.enableMultiView) count++;
   if (s.enablePointCloud) count++;
   if (s.enableEnhancedNormals) count++;
+  if (s.enablePerspective) count++;
+  if (s.enableStretchRemoval) count++;
   return count;
 }

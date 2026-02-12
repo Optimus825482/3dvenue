@@ -1,5 +1,12 @@
 import type { BufferGeometry } from "three";
 
+export interface CameraIntrinsics {
+  focalLength: number;
+  fov: number;
+  sensorWidth: number;
+  aspectRatio: number;
+}
+
 export interface PhotoFile {
   id: string;
   file: File;
@@ -9,13 +16,16 @@ export interface PhotoFile {
   thumbnail: string;
   width: number;
   height: number;
+  cameraIntrinsics?: CameraIntrinsics;
 }
 
+/** Depth estimation result including optional per-pixel confidence map */
 export interface DepthResult {
   photoId: string;
   depthMap: Float32Array;
   width: number;
   height: number;
+  confidence?: Float32Array;
 }
 
 export interface ProcessedMesh {
@@ -25,6 +35,7 @@ export interface ProcessedMesh {
   depthMap: Float32Array;
   width: number;
   height: number;
+  normalMap?: any;
 }
 
 export type ModelSize = "small" | "base" | "large";
@@ -48,85 +59,36 @@ export interface QualitySettings {
   enableMultiView: boolean;
   enablePointCloud: boolean;
   enableEnhancedNormals: boolean;
+  enablePerspective: boolean;
+  enableStretchRemoval: boolean;
+  stretchThreshold: number;
+  pointSize: number;
+  roughness: number;
+  metalness: number;
+  environmentPreset: "city" | "studio" | "sunset" | "dawn" | "night";
 }
 
 export const DEFAULT_QUALITY: QualitySettings = {
-  modelSize: "small",
-  maxResolution: 512,
-  enableSmoothing: false,
-  smoothingIterations: 3,
-  enableMultiView: false,
+  modelSize: "large",
+  maxResolution: 1536,
+  enableSmoothing: true,
+  smoothingIterations: 6,
+  enableMultiView: true,
   enablePointCloud: false,
-  enableEnhancedNormals: false,
+  enableEnhancedNormals: true,
+  enablePerspective: true,
+  enableStretchRemoval: true,
+  stretchThreshold: 0.12,
+  pointSize: 0.05,
+  roughness: 0.7,
+  metalness: 0.1,
+  environmentPreset: "studio",
 };
 
-export const QUALITY_ENHANCEMENTS: QualityEnhancement[] = [
-  {
-    id: "modelSize",
-    label: "Gelişmiş AI Model",
-    description:
-      "Depth-Anything-V2 large model ile maksimum detaylı derinlik haritası (~400MB)",
-    impact: 5,
-    difficulty: "medium",
-    icon: "🧠",
-    enabled: false,
-    timeEstimate: "+60s indirme",
-  },
-  {
-    id: "maxResolution",
-    label: "Yüksek Çözünürlük",
-    description: "İşleme boyutunu 512px → 1024px'e çıkarır, keskin detaylar",
-    impact: 3,
-    difficulty: "easy",
-    icon: "🔍",
-    enabled: false,
-    timeEstimate: "+%50 süre",
-  },
-  {
-    id: "enableSmoothing",
-    label: "Mesh Smoothing",
-    description: "Laplacian smoothing ile yüzey gürültüsünü azaltır",
-    impact: 2,
-    difficulty: "easy",
-    icon: "✨",
-    enabled: false,
-    timeEstimate: "+2s/fotoğraf",
-  },
-  {
-    id: "enableMultiView",
-    label: "Multi-View Hizalama",
-    description:
-      "Fotoğraflar arası feature matching ile mesh'leri otomatik hizalar",
-    impact: 4,
-    difficulty: "medium",
-    icon: "📐",
-    enabled: false,
-    timeEstimate: "+5s/çift",
-  },
-  {
-    id: "enablePointCloud",
-    label: "Point Cloud Birleştirme",
-    description: "Ayrı mesh'ler yerine tek birleşik 3D nokta bulutu oluşturur",
-    impact: 4,
-    difficulty: "medium",
-    icon: "☁️",
-    enabled: false,
-    timeEstimate: "+3s toplam",
-  },
-  {
-    id: "enableEnhancedNormals",
-    label: "Gelişmiş Normal Haritası",
-    description: "Ağırlıklı normal hesaplama ile daha gerçekçi aydınlatma",
-    impact: 2,
-    difficulty: "medium",
-    icon: "💡",
-    enabled: false,
-    timeEstimate: "+1s/fotoğraf",
-  },
-];
+export const QUALITY_ENHANCEMENTS: QualityEnhancement[] = [];
 
 export type ViewMode = "textured" | "solid" | "wireframe";
-export type AppStep = "upload" | "settings" | "processing" | "viewer";
+export type AppStep = "upload" | "processing" | "viewer";
 
 export interface ProcessingProgress {
   current: number;

@@ -1,11 +1,18 @@
-import React, { useCallback, useRef, useState } from "react";
-import type { PhotoFile } from "../types";
+import React, { useCallback, useRef, useState, useEffect } from "react";
+import type { PhotoFile, ModelSize } from "../types";
+import { analyzePhotoQuality, type PhotoQuality } from "../engine/PhotoAnalyzer";
+
+const MODEL_OPTIONS: { value: ModelSize; label: string; desc: string; icon: string }[] = [
+  { value: "small", label: "Hızlı", desc: "Düşük detay, çok hızlı", icon: "⚡" },
+  { value: "base", label: "Dengeli", desc: "Orta detay, makul süre", icon: "⚖️" },
+  { value: "large", label: "Maksimum", desc: "En yüksek kalite", icon: "💎" },
+];
 
 interface Props {
   photos: PhotoFile[];
   onAddPhotos: (files: FileList | File[]) => void;
   onRemovePhoto: (id: string) => void;
-  onProcess: () => void;
+  onProcess: (modelSize: ModelSize) => void;
   disabled?: boolean;
 }
 
@@ -18,9 +25,34 @@ export function PhotoUploader({
 }: Props) {
   const [isDragging, setIsDragging] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [qualityScores, setQualityScores] = useState<Record<string, PhotoQuality>>({});
+  const [selectedModel, setSelectedModel] = useState<ModelSize>("large");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const acceptTypes = ["image/jpeg", "image/png", "image/heic", "image/heif"];
+
+  // Analyze photo quality in background for new photos
+  useEffect(() => {
+    const unanalyzed = photos.filter((p) => !qualityScores[p.id]);
+    if (unanalyzed.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      for (const photo of unanalyzed) {
+        if (cancelled) break;
+        try {
+          const quality = await analyzePhotoQuality(photo.url);
+          if (!cancelled) {
+            setQualityScores((prev) => ({ ...prev, [photo.id]: quality }));
+          }
+        } catch {
+          // Silently skip failed analysis
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [photos]);
 
   const filterFiles = useCallback((files: FileList | File[]): File[] => {
     return Array.from(files).filter(
@@ -141,6 +173,22 @@ export function PhotoUploader({
                   alt={photo.name}
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                 />
+                {/* Quality Badge */}
+                {qualityScores[photo.id] && (
+                  <div
+                    className={`absolute top-2 left-2 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider backdrop-blur-md border ${qualityScores[photo.id].recommendation === "excellent"
+                      ? "bg-green-500/20 border-green-500/40 text-green-300"
+                      : qualityScores[photo.id].recommendation === "good"
+                        ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
+                        : qualityScores[photo.id].recommendation === "fair"
+                          ? "bg-yellow-500/20 border-yellow-500/40 text-yellow-300"
+                          : "bg-red-500/20 border-red-500/40 text-red-300"
+                      }`}
+                    title={qualityScores[photo.id].issues.join(" • ")}
+                  >
+                    {qualityScores[photo.id].overallScore}
+                  </div>
+                )}
                 <button
                   className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-danger/90 text-white shadow-sm opacity-0 group-hover:opacity-100 scale-75 group-hover:scale-100 transition-all duration-200 hover:bg-danger"
                   onClick={(e) => {
@@ -161,9 +209,33 @@ export function PhotoUploader({
           </div>
 
           <div className="flex flex-col items-center gap-4 mt-10 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-300">
+            {/* Model Size Selector */}
+            <div className="flex gap-1 md:gap-2 p-1 rounded-xl md:rounded-2xl bg-surface/80 border border-white/10 backdrop-blur-md">
+              {MODEL_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setSelectedModel(opt.value)}
+                  className={`
+                    flex items-center gap-1 md:gap-1.5 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl text-xs md:text-sm font-medium transition-all duration-200
+                    ${selectedModel === opt.value
+                      ? "bg-primary/20 text-primary border border-primary/30 shadow-[0_0_12px_rgba(0,212,255,0.15)]"
+                      : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                    }
+                  `}
+                  title={opt.desc}
+                >
+                  <span>{opt.icon}</span>
+                  <span>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+            <span className="text-[11px] text-gray-500">
+              {MODEL_OPTIONS.find((m) => m.value === selectedModel)?.desc}
+            </span>
+
             <button
-              className="group relative inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-br from-primary to-secondary text-white font-semibold shadow-[0_4px_20px_rgba(0,212,255,0.3)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,212,255,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none overflow-hidden"
-              onClick={onProcess}
+              className="group relative inline-flex items-center gap-2 px-6 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl bg-gradient-to-br from-primary to-secondary text-white font-semibold shadow-[0_4px_20px_rgba(0,212,255,0.3)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,212,255,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none overflow-hidden"
+              onClick={() => onProcess(selectedModel)}
               disabled={disabled || photos.length < 1}
             >
               <div className="absolute inset-0 bg-[linear-gradient(105deg,transparent_30%,rgba(255,255,255,0.2)_45%,rgba(255,255,255,0.3)_50%,rgba(255,255,255,0.2)_55%,transparent_70%)] bg-[length:200%_100%] animate-[shimmer_3s_infinite]" />
@@ -192,9 +264,24 @@ export function PhotoUploader({
               className="max-w-full max-h-[85vh] object-contain"
             />
             <div className="absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/80 to-transparent flex justify-between items-end">
-              <span className="text-white font-medium drop-shadow-md">
-                {previewPhoto.name}
-              </span>
+              <div>
+                <span className="text-white font-medium drop-shadow-md block">
+                  {previewPhoto.name}
+                </span>
+                {qualityScores[previewPhoto.id] && (
+                  <div className="flex gap-3 mt-1.5 text-[10px] font-mono">
+                    <span className="text-gray-300">
+                      Netlik: <span className="text-white">{qualityScores[previewPhoto.id].sharpness}</span>
+                    </span>
+                    <span className="text-gray-300">
+                      Parlaklık: <span className="text-white">{qualityScores[previewPhoto.id].brightness}</span>
+                    </span>
+                    <span className="text-gray-300">
+                      Kontrast: <span className="text-white">{qualityScores[previewPhoto.id].contrast}</span>
+                    </span>
+                  </div>
+                )}
+              </div>
               <span className="text-xs text-gray-300 font-mono bg-black/50 px-2 py-1 rounded">
                 {previewPhoto.width} × {previewPhoto.height}
               </span>

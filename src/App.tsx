@@ -1,7 +1,6 @@
 import { lazy, Suspense, useState, useEffect } from "react";
 import { Header } from "./components/Header";
 import { PhotoUploader } from "./components/PhotoUploader";
-import { QualitySettings } from "./components/QualitySettings";
 import { ProcessingView } from "./components/ProcessingView";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ErrorDisplay } from "./components/ErrorDisplay";
@@ -28,8 +27,7 @@ export default function App() {
     state,
     dispatch,
     addPhotos,
-    goToSettings,
-    processPhotos,
+    startProcessing,
     cancelProcessing,
   } = useAppState();
 
@@ -68,17 +66,7 @@ export default function App() {
             photos={state.photos}
             onAddPhotos={addPhotos}
             onRemovePhoto={(id) => dispatch({ type: "REMOVE_PHOTO", id })}
-            onProcess={goToSettings}
-          />
-        )}
-
-        {state.step === "settings" && (
-          <QualitySettings
-            settings={state.qualitySettings}
-            photoCount={state.photos.length}
-            dispatch={dispatch}
-            onProcess={processPhotos}
-            onBack={() => dispatch({ type: "SET_STEP", step: "upload" })}
+            onProcess={startProcessing}
           />
         )}
 
@@ -98,6 +86,7 @@ export default function App() {
                 showGrid={state.showGrid}
                 depthScale={state.depthScale}
                 selectedMeshIndex={state.selectedMeshIndex}
+                qualitySettings={state.qualitySettings}
                 dispatch={dispatch}
                 onNewProject={() => dispatch({ type: "RESET" })}
               />

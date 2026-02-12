@@ -1,4 +1,13 @@
-import { PlaneGeometry, Float32BufferAttribute, Vector3 } from "three";
+import {
+  PlaneGeometry,
+  Float32BufferAttribute,
+  Vector3,
+  DataTexture,
+  RGBAFormat,
+  FloatType,
+  LinearFilter,
+} from "three";
+import type { CameraIntrinsics } from "../types";
 
 interface MeshOptions {
   depthMap: Float32Array;
@@ -9,6 +18,11 @@ interface MeshOptions {
   segmentsY?: number;
   enhancedNormals?: boolean;
   outlierRemoval?: boolean;
+  perspective?: boolean;
+  stretchRemoval?: boolean;
+  stretchThreshold?: number;
+  fov?: number;
+  cameraIntrinsics?: CameraIntrinsics;
 }
 
 export function generateDepthMesh({
@@ -19,9 +33,14 @@ export function generateDepthMesh({
   segmentsX,
   segmentsY,
   enhancedNormals = false,
-  outlierRemoval = true, // Default true for better quality
+  outlierRemoval = true,
+  perspective = true,
+  stretchRemoval = true,
+  stretchThreshold = 0.2,
+  fov = 60,
+  cameraIntrinsics,
 }: MeshOptions): PlaneGeometry {
-  const maxSegments = 200;
+  const maxSegments = 800; // Increased from 200 for smoother details
   const aspect = width / height;
 
   const segsX = segmentsX ?? Math.min(width, maxSegments);
@@ -43,7 +62,33 @@ export function generateDepthMesh({
     const idx = py * width + px;
 
     const depth = depthMap[idx] ?? 0;
-    positions.setZ(i, depth * depthScale);
+    const z = depth * depthScale;
+    positions.setZ(i, z);
+
+    // Perspective Projection: Expand X/Y based on Z
+    if (perspective) {
+      const effectiveFov = cameraIntrinsics?.fov ?? fov;
+      const perspectiveFactor =
+        Math.tan((effectiveFov * Math.PI) / 180 / 2) * 0.5;
+      const scale = 1 + z * perspectiveFactor;
+
+      const originalX = positions.getX(i);
+      const originalY = positions.getY(i);
+
+      positions.setX(i, originalX * scale);
+      positions.setY(i, originalY * scale);
+    }
+  }
+
+  // Edge/Stretch Removal
+  if (stretchRemoval && geometry.index) {
+    removeStretchedFaces(geometry, stretchThreshold);
+  }
+
+  // Edge Margin Culling — remove outer 3% of mesh faces
+  // to eliminate noisy/distorted border regions from depth estimation
+  if (geometry.index) {
+    cullEdgeMargin(geometry, width, height, 0.03);
   }
 
   // Statistical Outlier Removal
@@ -70,12 +115,12 @@ export function generateDepthMesh({
     }
     const stdDev = Math.sqrt(variance / (count || 1));
 
-    // 3. Filter Outliers (Threshold: Mean + 2.5*StdDev)
+    // 3. Filter Outliers — clamp to threshold instead of zeroing
     const threshold = mean + 2.5 * stdDev;
 
     for (let i = 0; i < vertexCount; i++) {
       if (positions.getZ(i) > threshold) {
-        positions.setZ(i, 0);
+        positions.setZ(i, threshold);
       }
     }
   }
@@ -103,8 +148,85 @@ export function generateDepthMesh({
 }
 
 /**
- * Laplacian mesh smoothing — averages each vertex position
- * with its neighbors for the given number of iterations.
+ * Removes faces (triangles) that have edges longer than the threshold in the Z-axis.
+ * This fixes the "curtain" effect where foreground connects to background.
+ */
+function removeStretchedFaces(
+  geometry: PlaneGeometry,
+  threshold: number,
+): void {
+  const index = geometry.index;
+  const positions = geometry.attributes.position;
+  if (!index) return;
+
+  // Collect only non-stretched triangles into a new index buffer
+  const kept: number[] = [];
+
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i);
+    const b = index.getX(i + 1);
+    const c = index.getX(i + 2);
+
+    const z1 = positions.getZ(a);
+    const z2 = positions.getZ(b);
+    const z3 = positions.getZ(c);
+
+    const d1 = Math.abs(z1 - z2);
+    const d2 = Math.abs(z2 - z3);
+    const d3 = Math.abs(z3 - z1);
+
+    if (d1 <= threshold && d2 <= threshold && d3 <= threshold) {
+      kept.push(a, b, c);
+    }
+  }
+
+  // Rebuild the index buffer with only the kept triangles
+  geometry.setIndex(kept);
+}
+
+/**
+ * Culls triangles whose vertices fall within the outer margin of the mesh.
+ * Depth estimation at image borders is unreliable and creates artifacts.
+ */
+function cullEdgeMargin(
+  geometry: PlaneGeometry,
+  imageWidth: number,
+  imageHeight: number,
+  marginPercent: number = 0.03,
+): void {
+  const index = geometry.index;
+  const positions = geometry.attributes.position;
+  if (!index) return;
+
+  const planeWidth = geometry.parameters.width;
+  const planeHeight = geometry.parameters.height;
+  const marginU = marginPercent;
+  const marginV = marginPercent;
+
+  const isInMargin = (vertexIndex: number): boolean => {
+    const u = positions.getX(vertexIndex) / planeWidth + 0.5;
+    const v = 1.0 - (positions.getY(vertexIndex) / planeHeight + 0.5);
+    return u < marginU || u > 1 - marginU || v < marginV || v > 1 - marginV;
+  };
+
+  const kept: number[] = [];
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i);
+    const b = index.getX(i + 1);
+    const c = index.getX(i + 2);
+
+    // Remove triangle if ANY vertex is in the margin
+    if (!isInMargin(a) && !isInMargin(b) && !isInMargin(c)) {
+      kept.push(a, b, c);
+    }
+  }
+
+  geometry.setIndex(kept);
+}
+
+/**
+ * Taubin mesh smoothing — alternates lambda (smooth) and mu (inflate) passes.
+ * Unlike pure Laplacian, this prevents mesh shrinkage while still removing noise.
  */
 export function smoothMesh(
   geometry: PlaneGeometry,
@@ -134,29 +256,47 @@ export function smoothMesh(
     }
   }
 
-  // Laplacian smoothing (only Z axis — keep XY for texture coords)
+  // Taubin smoothing (only Z axis — keep XY for texture coords)
+  // lambda > 0 smooths, mu < 0 and |mu| > lambda prevents shrinkage
   const lambda = 0.5;
+  const mu = -0.53; // Must satisfy |mu| > lambda
   for (let iter = 0; iter < iterations; iter++) {
-    const newZ = new Float32Array(count);
-
+    // Lambda pass (smooth)
+    const afterLambda = new Float32Array(count);
     for (let i = 0; i < count; i++) {
       const nbrs = neighbors[i];
       if (nbrs.size === 0) {
-        newZ[i] = positions.getZ(i);
+        afterLambda[i] = positions.getZ(i);
         continue;
       }
-
       let avgZ = 0;
       nbrs.forEach((n) => {
         avgZ += positions.getZ(n);
       });
       avgZ /= nbrs.size;
-
-      newZ[i] = positions.getZ(i) + lambda * (avgZ - positions.getZ(i));
+      afterLambda[i] = positions.getZ(i) + lambda * (avgZ - positions.getZ(i));
+    }
+    for (let i = 0; i < count; i++) {
+      positions.setZ(i, afterLambda[i]);
     }
 
+    // Mu pass (un-shrink)
+    const afterMu = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      positions.setZ(i, newZ[i]);
+      const nbrs = neighbors[i];
+      if (nbrs.size === 0) {
+        afterMu[i] = positions.getZ(i);
+        continue;
+      }
+      let avgZ = 0;
+      nbrs.forEach((n) => {
+        avgZ += positions.getZ(n);
+      });
+      avgZ /= nbrs.size;
+      afterMu[i] = positions.getZ(i) + mu * (avgZ - positions.getZ(i));
+    }
+    for (let i = 0; i < count; i++) {
+      positions.setZ(i, afterMu[i]);
     }
   }
 
@@ -227,6 +367,77 @@ function computeEnhancedNormals(geometry: PlaneGeometry): void {
   }
 
   geometry.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+}
+
+/**
+ * Generates a normal map from a depth map using Sobel operators (3×3).
+ * Returns RGBA Float32Array (width × height × 4).
+ */
+export function generateNormalMapFromDepth(
+  depthMap: Float32Array,
+  width: number,
+  height: number,
+  strength: number = 1.0,
+): Float32Array {
+  const output = new Float32Array(width * height * 4);
+
+  // Scharr kernels — more rotationally symmetric than Sobel
+  const sobelX = [-3, 0, 3, -10, 0, 10, -3, 0, 3];
+  const sobelY = [-3, -10, -3, 0, 0, 0, 3, 10, 3];
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let dzdx = 0;
+      let dzdy = 0;
+
+      for (let ky = -1; ky <= 1; ky++) {
+        for (let kx = -1; kx <= 1; kx++) {
+          const sx = Math.min(Math.max(x + kx, 0), width - 1);
+          const sy = Math.min(Math.max(y + ky, 0), height - 1);
+          const sample = depthMap[sy * width + sx];
+          const ki = (ky + 1) * 3 + (kx + 1);
+          dzdx += sample * sobelX[ki];
+          dzdy += sample * sobelY[ki];
+        }
+      }
+
+      // Construct normal vector
+      const nx = -dzdx * strength;
+      const ny = -dzdy * strength;
+      const nz = 1.0;
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+
+      // Encode to 0-1 range
+      const idx = (y * width + x) * 4;
+      output[idx] = (nx / len) * 0.5 + 0.5;
+      output[idx + 1] = (ny / len) * 0.5 + 0.5;
+      output[idx + 2] = (nz / len) * 0.5 + 0.5;
+      output[idx + 3] = 1.0;
+    }
+  }
+
+  return output;
+}
+
+/**
+ * Creates a Three.js DataTexture from a normal map Float32Array.
+ */
+export function createNormalTexture(
+  normalData: Float32Array,
+  width: number,
+  height: number,
+): DataTexture {
+  const texture = new DataTexture(
+    normalData,
+    width,
+    height,
+    RGBAFormat,
+    FloatType,
+  );
+  texture.minFilter = LinearFilter;
+  texture.magFilter = LinearFilter;
+  texture.needsUpdate = true;
+  return texture;
 }
 
 export function updateDepthScale(

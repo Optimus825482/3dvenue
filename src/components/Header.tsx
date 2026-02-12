@@ -7,7 +7,6 @@ interface Props {
 
 const steps: { key: AppStep; label: string; icon: string }[] = [
   { key: "upload", label: "Yükle", icon: "📸" },
-  { key: "settings", label: "Ayarlar", icon: "⚙️" },
   { key: "processing", label: "İşle", icon: "🧠" },
   { key: "viewer", label: "3D Görüntüle", icon: "👁️" },
 ];

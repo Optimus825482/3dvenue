@@ -37,22 +37,31 @@ export const PersistenceService = {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
 
-      // Serialize Geometry
-      const serializedMeshes = state.meshes.map((mesh) => ({
-        ...mesh,
-        geometry: mesh.geometry.toJSON(),
-      }));
+      // Serialize Geometry — clone to strip event listeners
+      const serializedMeshes = state.meshes.map((mesh) => {
+        try {
+          const geomJSON = mesh.geometry.toJSON();
+          return {
+            photoId: mesh.photoId,
+            textureUrl: mesh.textureUrl,
+            depthMap: Array.from(mesh.depthMap),
+            width: mesh.width,
+            height: mesh.height,
+            geometry: geomJSON,
+          };
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
 
       // Photos (File objects) are natively supported by IDB
 
       const serializedState: SerializedState = {
-        ...state,
-        meshes: serializedMeshes,
-        // We only save relevant parts for restoration
         step: state.step,
         photos: state.photos,
-        progress: state.progress,
-        error: null, // Don't persist errors
+        meshes: serializedMeshes as SerializedMesh[],
+        progress: null,
+        error: null,
         qualitySettings: state.qualitySettings,
         viewMode: state.viewMode,
         showGrid: state.showGrid,
@@ -93,21 +102,27 @@ export const PersistenceService = {
           }));
 
           // Restore Meshes (JSON to BufferGeometry)
-          // const loader = new THREE.ObjectLoader();
-          const restoredMeshes = data.meshes.map((m) => {
-            // toJSON returns a generic object, we need to parse geometry
-            // But THREE.ObjectLoader parses a whole scene/object usually.
-            // BufferGeometry.toJSON returns { metadata:..., uuid:..., type:..., data:... }
-            // We can use the generic JSONLoader-like approach or just reconstruct.
-            // Actually, simplest is to use:
-            const geometry = new THREE.BufferGeometryLoader().parse(m.geometry);
-            return {
-              ...m,
-              geometry,
-              textureUrl:
-                restoredPhotos.find((p) => p.id === m.photoId)?.url || "",
-            };
-          });
+          const restoredMeshes: ProcessedMesh[] = [];
+          for (const m of data.meshes) {
+            try {
+              const geometry = new THREE.BufferGeometryLoader().parse(m.geometry);
+              const depthMap =
+                m.depthMap instanceof Float32Array
+                  ? m.depthMap
+                  : new Float32Array(m.depthMap);
+              restoredMeshes.push({
+                photoId: m.photoId,
+                geometry,
+                textureUrl:
+                  restoredPhotos.find((p) => p.id === m.photoId)?.url || "",
+                depthMap,
+                width: m.width,
+                height: m.height,
+              });
+            } catch (err) {
+              console.warn("Mesh restore skipped:", err);
+            }
+          }
 
           resolve({
             ...data,
